@@ -79,12 +79,13 @@ def train(training_args):
                 sum_loss = 0
                 total = 0
 
-            if False:
-                dist_model.eval()
+            if itr % training_args['eval_every'] == 1:
+                model.eval()
                 metrics = get_eval_metrics(model, eval_dataloader, criterion)
                 print("epoch %d, itr %d :" %(i, itr))
                 for metric_name, value in metrics.items():
                     print(f'\teval_{metric_name}: {value}', flush=True)
+                model.train()
 
             if i % training_args['save_every'] == 0:
                 save_checkpoint(
@@ -104,13 +105,17 @@ def get_eval_metrics(model, dataloader, criterion):
         sum_loss = 0
         total = 0
         correct = 0
-        for input_llms, input_title_ids, input_title_mask, input_descs_ids, input_descs_mask, targets in tqdm(dataloader):
+        for features, targets in dataloader:
 
-            y_pred = model(input_llms, input_title_ids, input_title_mask, input_descs_ids, input_descs_mask)
+            y_pred = model(features)
+            y_pred = torch.squeeze(y_pred)
+            print(type(y_pred))
+            print(type(targets))
             loss = criterion(y_pred, targets)
             sum_loss += loss.item()*targets.shape[0]
             total += targets.shape[0]
-            predicted_labels = y_pred.argmax(1)
+            # compute predecited labels based on threhold 0.5
+            predicted_labels = torch.where(y_pred <= 0.5,0,1)
             correct += (targets==predicted_labels).sum().item()
 
         accuracy = correct / total
